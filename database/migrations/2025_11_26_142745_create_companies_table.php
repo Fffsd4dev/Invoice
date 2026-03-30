@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('company_name');
             $table->string('company_logo');
             $table->string('company_phone');
+            $table->string('company_address');
+            $table->char('company_color', 9);
             $table->string('company_email');
             $table->string('company_account_name');
             $table->string('company_account_number');

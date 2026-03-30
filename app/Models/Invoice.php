@@ -11,7 +11,11 @@ class Invoice extends Model
         'type',
         'issue_date',
         'due_date',
-        'company_id'
+        'company_id',
+        'sub_total',
+        'total',
+        'balance_due',
+        'tax'
     ];
 
     public function company(){
@@ -21,6 +25,7 @@ class Invoice extends Model
                         'company_name', 
                         'company_logo', 
                         'company_phone', 
+                        'company_color',
                         'company_phone', 
                         'company_email',
                         'company_account_name',

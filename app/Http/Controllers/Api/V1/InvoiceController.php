@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 
-use App\Models\{Invoice,InvoiceItem};
+use App\Models\{Invoice,InvoiceItem,Company};
 
 
 class InvoiceController extends Controller
@@ -19,6 +19,10 @@ class InvoiceController extends Controller
             'issue_date' => 'required|date',
             'due_date' => 'nullable|date',
             'company_id' => 'required|numeric|gte:1|exists:companies,id',
+            'sub_total' => 'required|numeric|gte:1',
+            'total' => 'required|numeric|gte:1',
+            'balance_due' => 'required|numeric|gte:1',
+            'tax' => 'required|numeric|gte:1',
             //validation for invoice items
             'description'   => 'required|array|min:1',
             'description.*' => 'required|string',
@@ -46,6 +50,10 @@ class InvoiceController extends Controller
                 'issue_date' => $validated['issue_date'],
                 'due_date' => $validated['due_date'],
                 'company_id' => $validated['company_id'],
+                'sub_total' => $validated['sub_total'],
+                'total' => $validated['total'],
+                'balance_due' => $validated['balance_due'],
+                'tax' => $validated['tax'],
             ]);
 
             // LOOP THROUGH INVOICE ITEMS
@@ -79,13 +87,22 @@ class InvoiceController extends Controller
 
     }
 
-    public function index()
+    public function index($companyId)
     {
-        $invoices = Invoice::with(['company', 'items'])->get();
+        $invoices = Invoice::with(['items','company'])
+                    ->where('company_id', $companyId)
+                    ->select('id', 'client_name')
+                    ->get();
+        $company = Company::select('id', 'company_name')->first();
+
+        foreach($invoices as $invoice){
+            $invoice['invoice_number'] = str_pad($invoice['id'], 6, '0', STR_PAD_LEFT);
+        }
 
         return response()->json([
             'message' => 'All invoices fetched successfully',
-            'invoices' => $invoices
+            'invoices' => $invoices,
+            'company' => $company
         ]);
     }
 
@@ -96,6 +113,8 @@ class InvoiceController extends Controller
         if (!$invoice) {
             return response()->json(['error' => 'Invoice not found'], 404);
         }
+
+        $invoice->invoice_number = str_pad($invoice->id, 6, '0', STR_PAD_LEFT);
 
         return response()->json([
             'message' => 'Invoice fetched successfully',

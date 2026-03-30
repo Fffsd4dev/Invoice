@@ -4,8 +4,10 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\{
     AuthController,
     CompanyController,
-    InvoiceController
+    InvoiceController,
+    AnalyticsController
 };
+use Illuminate\Console\View\Components\Ask;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -21,7 +23,10 @@ Route::middleware(['auth:sanctum'])->group(function(){
 
     //iNVOICE CRD
     Route::post('/invoice/create', [InvoiceController::class, 'create']);
-    Route::get('/invoice/list', [InvoiceController::class, 'index']);
+    Route::get('/invoice/list/{companyId}', [InvoiceController::class, 'index']);
     Route::get('/invoice/show/{id}', [InvoiceController::class, 'show']);
     Route::delete('/invoice/delete/{id}', [InvoiceController::class, 'destroy']);
+
+    //Analytics
+    Route::get('/analytics', [AnalyticsController::class, 'index']);
 });

@@ -17,6 +17,10 @@ return new class extends Migration
             $table->string('type');
             $table->date('issue_date');
             $table->date('due_date');
+            $table->decimal('tax', 8, 2);
+            $table->decimal('balance_due', 15, 2);
+            $table->decimal('total', 15, 2);
+            $table->decimal('sub_total', 15, 2);
             $table->foreignId('company_id')
                     ->constrained()
                     ->onDelete('cascade');
