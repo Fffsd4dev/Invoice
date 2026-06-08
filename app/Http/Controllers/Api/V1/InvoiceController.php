@@ -22,7 +22,7 @@ class InvoiceController extends Controller
             'sub_total' => 'required|numeric|gte:1',
             'total' => 'required|numeric|gte:1',
             'balance_due' => 'required|numeric|gte:1',
-            'tax' => 'required|numeric|gte:1',
+            'tax' => 'required|numeric|gte:0',
             //validation for invoice items
             'description'   => 'required|array|min:1',
             'description.*' => 'required|string',
