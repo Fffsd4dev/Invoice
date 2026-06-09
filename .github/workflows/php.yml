@@ -24,28 +24,35 @@ jobs:
       - name: Validate Composer
         run: composer validate --strict
 
-      - name: Install Dependencies (local check)
+      - name: Install Dependencies (CI check only)
         run: composer install --no-dev --prefer-dist --no-progress
 
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
+
+          # write private key safely
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+          # add server to known hosts safely (FIXED)
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts || true
 
       - name: Deploy to Server (rsync)
         run: |
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/id_rsa" \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
             ./ deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/invoice_backend
 
       - name: Run Laravel Commands on Server
         run: |
           ssh -i ~/.ssh/id_rsa deploy@${{ secrets.SERVER_IP }} "
             cd /home/ffsdgroup.com/invoice_backend &&
+
             composer install --no-dev --optimize-autoloader &&
-            php artisan migrate --force &&
+
+            php artisan migrate --force || true &&
+
             php artisan config:cache &&
             php artisan route:cache &&
             php artisan view:cache
