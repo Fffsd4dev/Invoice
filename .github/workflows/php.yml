@@ -1,0 +1,52 @@
+name: Deploy Laravel Backend
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, intl, bcmath, pdo, mysql, zip
+
+      - name: Validate Composer
+        run: composer validate --strict
+
+      - name: Install Dependencies (local check)
+        run: composer install --no-dev --prefer-dist --no-progress
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server (rsync)
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/id_rsa" \
+            ./ deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/api.ffsdgroup.com
+
+      - name: Run Laravel Commands on Server
+        run: |
+          ssh -i ~/.ssh/id_rsa deploy@${{ secrets.SERVER_IP }} "
+            cd /home/ffsdgroup.com/api.ffsdgroup.com &&
+            composer install --no-dev --optimize-autoloader &&
+            php artisan migrate --force &&
+            php artisan config:cache &&
+            php artisan route:cache &&
+            php artisan view:cache
+          "
