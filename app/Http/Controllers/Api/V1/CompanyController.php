@@ -58,7 +58,7 @@ class CompanyController extends Controller
         ], 200);
     }
 
-    public function show($id)
+    public function show(int $id)
     {
         $company = Company::find($id);
 
@@ -78,7 +78,7 @@ class CompanyController extends Controller
         return response()->json(['company' => $company, 'invoiceNumber' => $formattedId]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request,int $id)
     {
         $company = Company::find($id);
 
@@ -120,7 +120,7 @@ class CompanyController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(int $id)
     {
         $company = Company::find($id);
 

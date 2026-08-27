@@ -87,7 +87,7 @@ class InvoiceController extends Controller
 
     }
 
-    public function index($companyId)
+    public function index(int $companyId)
     {
         $invoices = Invoice::with(['items','company'])
                     ->where('company_id', $companyId)
@@ -106,7 +106,7 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show(int $id)
     {
         $invoice = Invoice::with(['company','items'])->find($id);
 
@@ -122,7 +122,7 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request,int $id)
     {
         $invoice = Invoice::find($id);
         if (!$invoice) {
@@ -192,7 +192,7 @@ class InvoiceController extends Controller
         }
     }
 
-    public function destroy($id)
+    public function destroy(int $id)
     {
         $invoice = Invoice::find($id);
 
