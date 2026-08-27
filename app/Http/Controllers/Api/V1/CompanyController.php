@@ -32,6 +32,8 @@ class CompanyController extends Controller
 
         $validated = $validator->validated();
 
+        dd('I got here');
+
         // Handle file upload
         if ($request->hasFile('company_logo')) {
             $filename = time() .'.'. $request->company_logo->extension();
