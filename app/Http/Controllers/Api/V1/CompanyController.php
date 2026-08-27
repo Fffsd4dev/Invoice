@@ -11,6 +11,8 @@ use App\Models\{Company, Invoice};
 class CompanyController extends Controller
 {
     public function create(Request $request){
+        dd('I got here');
+        
         $validator = Validator::make($request->all(), [
             'company_name' => 'required|string|max:255|unique:companies,company_name',
             'company_logo'   => 'required|image|mimes:jpeg,png,jpg|max:2048',
@@ -31,8 +33,6 @@ class CompanyController extends Controller
         
 
         $validated = $validator->validated();
-
-        dd('I got here');
 
         // Handle file upload
         if ($request->hasFile('company_logo')) {
