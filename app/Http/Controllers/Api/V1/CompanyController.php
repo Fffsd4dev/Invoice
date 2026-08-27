@@ -11,7 +11,6 @@ use App\Models\{Company, Invoice};
 class CompanyController extends Controller
 {
     public function create(Request $request){
-        dd('I got here');
         
         $validator = Validator::make($request->all(), [
             'company_name' => 'required|string|max:255|unique:companies,company_name',
