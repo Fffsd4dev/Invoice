@@ -31,16 +31,17 @@ jobs:
         run: |
           mkdir -p ~/.ssh
 
-          # write private key safely
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-          # add server to known hosts safely (FIXED)
           ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts || true
 
       - name: Deploy to Server (rsync)
         run: |
           rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='storage/' \
+            --exclude='bootstrap/cache/' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
             ./ deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/invoice_backend
 
@@ -56,4 +57,3 @@ jobs:
             php artisan config:cache &&
             php artisan route:cache &&
             php artisan view:cache
-          "
