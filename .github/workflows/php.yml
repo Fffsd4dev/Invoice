@@ -209,33 +209,6 @@ jobs:
 
 
       # ---------------------------------------------------------
-      # 11. Restart OpenLiteSpeed
-      #
-      # This requires deploy to have passwordless sudo permission
-      # for systemctl restart lsws.
-      #
-      # If deploy does not have this permission, this step should
-      # be removed or configured separately.
-      # ---------------------------------------------------------
-      - name: Restart OpenLiteSpeed
-        run: |
-          ssh \
-            -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=yes \
-            deploy@${{ secrets.SERVER_IP }} << 'EOF'
-
-            set -e
-
-            echo "Restarting OpenLiteSpeed..."
-
-            sudo systemctl restart lsws
-
-            echo "OpenLiteSpeed restarted successfully."
-
-          EOF
-
-
-      # ---------------------------------------------------------
       # 12. Deployment complete
       # ---------------------------------------------------------
       - name: Deployment Successful
