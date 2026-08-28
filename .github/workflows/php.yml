@@ -1,4 +1,3 @@
-
 name: Deploy Laravel Backend
 
 on:
@@ -23,13 +22,16 @@ jobs:
 
       # ---------------------------------------------------------
       # 2. Setup PHP
+      #
+      # Production server is running PHP 8.3, so CI should match.
       # ---------------------------------------------------------
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.2"
-          extensions: mbstring, intl, bcmath, pdo, mysql, zip
+          php-version: "8.3"
+          extensions: mbstring, intl, bcmath, pdo, mysql, zip, fileinfo
           tools: composer
+          coverage: none
 
 
       # ---------------------------------------------------------
@@ -43,7 +45,7 @@ jobs:
       # 4. Install dependencies for CI validation
       #
       # This vendor directory exists only inside GitHub Actions.
-      # It is NOT copied to the production server.
+      # Production vendor is installed separately on the server.
       # ---------------------------------------------------------
       - name: Install Dependencies (CI check only)
         run: |
@@ -65,7 +67,7 @@ jobs:
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts || true
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
 
 
       # ---------------------------------------------------------
@@ -75,7 +77,7 @@ jobs:
         run: |
           ssh \
             -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
+            -o StrictHostKeyChecking=yes \
             deploy@${{ secrets.SERVER_IP }} \
             "echo 'SSH connection successful'"
 
@@ -83,17 +85,16 @@ jobs:
       # ---------------------------------------------------------
       # 7. Deploy application files
       #
-      # IMPORTANT:
+      # NEVER overwrite:
       #
-      # .env                  -> NEVER overwrite/delete
-      # vendor/               -> Managed by Composer on server
-      # storage/              -> Runtime/user-generated files
-      # bootstrap/cache/      -> Laravel runtime cache
-      #
-      # --delete removes files from the server that no longer
-      # exist in Git, BUT excluded directories/files are preserved.
+      # .env
+      # vendor/
+      # storage/
+      # bootstrap/cache/
+      # .git/
+      # .github/
       # ---------------------------------------------------------
-      - name: Deploy to Server
+      - name: Deploy Application Files
         run: |
           rsync -avz \
             --delete \
@@ -103,19 +104,19 @@ jobs:
             --exclude='bootstrap/cache/' \
             --exclude='.git/' \
             --exclude='.github/' \
-            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=yes" \
             ./ \
             deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/invoice_backend/
 
 
       # ---------------------------------------------------------
-      # 8. Install Composer dependencies on production server
+      # 8. Install Composer dependencies on production
       # ---------------------------------------------------------
       - name: Install Production Dependencies
         run: |
           ssh \
             -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
+            -o StrictHostKeyChecking=yes \
             deploy@${{ secrets.SERVER_IP }} << 'EOF'
 
             set -e
@@ -137,20 +138,52 @@ jobs:
 
 
       # ---------------------------------------------------------
-      # 9. Run Laravel deployment commands
+      # 9. Configure Laravel writable directories
+      #
+      # The application is owned by deploy.
+      # LSPHP runs as ffsdg9097.
+      #
+      # ffsdg9097 should be a member of the deploy group.
       # ---------------------------------------------------------
-      - name: Run Laravel Commands
+      - name: Configure Laravel Permissions
         run: |
           ssh \
             -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
+            -o StrictHostKeyChecking=yes \
             deploy@${{ secrets.SERVER_IP }} << 'EOF'
 
             set -e
 
             cd /home/ffsdgroup.com/invoice_backend
 
-            echo "Running Laravel migrations..."
+            echo "Configuring Laravel writable directories..."
+
+            chmod -R 775 storage bootstrap/cache
+
+            find storage bootstrap/cache \
+              -type d \
+              -exec chmod g+s {} \;
+
+            echo "Laravel permissions configured successfully."
+
+          EOF
+
+
+      # ---------------------------------------------------------
+      # 10. Run Laravel deployment commands
+      # ---------------------------------------------------------
+      - name: Run Laravel Commands
+        run: |
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=yes \
+            deploy@${{ secrets.SERVER_IP }} << 'EOF'
+
+            set -e
+
+            cd /home/ffsdgroup.com/invoice_backend
+
+            echo "Running database migrations..."
 
             php artisan migrate --force
 
@@ -158,15 +191,15 @@ jobs:
 
             php artisan optimize:clear
 
-            echo "Rebuilding Laravel configuration cache..."
+            echo "Caching Laravel configuration..."
 
             php artisan config:cache
 
-            echo "Rebuilding Laravel route cache..."
+            echo "Caching Laravel routes..."
 
             php artisan route:cache
 
-            echo "Rebuilding Laravel view cache..."
+            echo "Caching Laravel views..."
 
             php artisan view:cache
 
@@ -176,7 +209,34 @@ jobs:
 
 
       # ---------------------------------------------------------
-      # 10. Deployment complete
+      # 11. Restart OpenLiteSpeed
+      #
+      # This requires deploy to have passwordless sudo permission
+      # for systemctl restart lsws.
+      #
+      # If deploy does not have this permission, this step should
+      # be removed or configured separately.
+      # ---------------------------------------------------------
+      - name: Restart OpenLiteSpeed
+        run: |
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=yes \
+            deploy@${{ secrets.SERVER_IP }} << 'EOF'
+
+            set -e
+
+            echo "Restarting OpenLiteSpeed..."
+
+            sudo systemctl restart lsws
+
+            echo "OpenLiteSpeed restarted successfully."
+
+          EOF
+
+
+      # ---------------------------------------------------------
+      # 12. Deployment complete
       # ---------------------------------------------------------
       - name: Deployment Successful
         run: |
