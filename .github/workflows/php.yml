@@ -1,3 +1,4 @@
+
 name: Deploy Laravel Backend
 
 on:
@@ -12,21 +13,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ---------------------------------------------------------
+      # 1. Checkout repository
+      # ---------------------------------------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
 
+
+      # ---------------------------------------------------------
+      # 2. Setup PHP
+      # ---------------------------------------------------------
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
           extensions: mbstring, intl, bcmath, pdo, mysql, zip
+          tools: composer
 
+
+      # ---------------------------------------------------------
+      # 3. Validate Composer configuration
+      # ---------------------------------------------------------
       - name: Validate Composer
         run: composer validate --strict
 
-      - name: Install Dependencies (CI check only)
-        run: composer install --no-dev --prefer-dist --no-progress
 
+      # ---------------------------------------------------------
+      # 4. Install dependencies for CI validation
+      #
+      # This vendor directory exists only inside GitHub Actions.
+      # It is NOT copied to the production server.
+      # ---------------------------------------------------------
+      - name: Install Dependencies (CI check only)
+        run: |
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-progress \
+            --no-interaction \
+            --optimize-autoloader
+
+
+      # ---------------------------------------------------------
+      # 5. Setup SSH
+      # ---------------------------------------------------------
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -36,24 +67,119 @@ jobs:
 
           ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts || true
 
-      - name: Deploy to Server (rsync)
+
+      # ---------------------------------------------------------
+      # 6. Test SSH connection
+      # ---------------------------------------------------------
+      - name: Test SSH Connection
         run: |
-          rsync -avz --delete \
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            deploy@${{ secrets.SERVER_IP }} \
+            "echo 'SSH connection successful'"
+
+
+      # ---------------------------------------------------------
+      # 7. Deploy application files
+      #
+      # IMPORTANT:
+      #
+      # .env                  -> NEVER overwrite/delete
+      # vendor/               -> Managed by Composer on server
+      # storage/              -> Runtime/user-generated files
+      # bootstrap/cache/      -> Laravel runtime cache
+      #
+      # --delete removes files from the server that no longer
+      # exist in Git, BUT excluded directories/files are preserved.
+      # ---------------------------------------------------------
+      - name: Deploy to Server
+        run: |
+          rsync -avz \
+            --delete \
             --exclude='.env' \
+            --exclude='vendor/' \
             --exclude='storage/' \
             --exclude='bootstrap/cache/' \
+            --exclude='.git/' \
+            --exclude='.github/' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
-            ./ deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/invoice_backend
+            ./ \
+            deploy@${{ secrets.SERVER_IP }}:/home/ffsdgroup.com/invoice_backend/
 
-      - name: Run Laravel Commands on Server
+
+      # ---------------------------------------------------------
+      # 8. Install Composer dependencies on production server
+      # ---------------------------------------------------------
+      - name: Install Production Dependencies
         run: |
-          ssh -i ~/.ssh/id_rsa deploy@${{ secrets.SERVER_IP }} "
-            cd /home/ffsdgroup.com/invoice_backend &&
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            deploy@${{ secrets.SERVER_IP }} << 'EOF'
 
-            composer install --no-dev --optimize-autoloader &&
+            set -e
 
-            php artisan migrate --force || true &&
+            cd /home/ffsdgroup.com/invoice_backend
 
-            php artisan config:cache &&
-            php artisan route:cache &&
+            echo "Installing Composer dependencies..."
+
+            composer install \
+              --no-dev \
+              --prefer-dist \
+              --no-interaction \
+              --optimize-autoloader \
+              --no-progress
+
+            echo "Composer dependencies installed successfully."
+
+          EOF
+
+
+      # ---------------------------------------------------------
+      # 9. Run Laravel deployment commands
+      # ---------------------------------------------------------
+      - name: Run Laravel Commands
+        run: |
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            deploy@${{ secrets.SERVER_IP }} << 'EOF'
+
+            set -e
+
+            cd /home/ffsdgroup.com/invoice_backend
+
+            echo "Running Laravel migrations..."
+
+            php artisan migrate --force
+
+            echo "Clearing old Laravel caches..."
+
+            php artisan optimize:clear
+
+            echo "Rebuilding Laravel configuration cache..."
+
+            php artisan config:cache
+
+            echo "Rebuilding Laravel route cache..."
+
+            php artisan route:cache
+
+            echo "Rebuilding Laravel view cache..."
+
             php artisan view:cache
+
+            echo "Laravel deployment commands completed successfully."
+
+          EOF
+
+
+      # ---------------------------------------------------------
+      # 10. Deployment complete
+      # ---------------------------------------------------------
+      - name: Deployment Successful
+        run: |
+          echo "=========================================="
+          echo "Laravel deployment completed successfully"
+          echo "=========================================="
